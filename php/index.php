@@ -28,7 +28,7 @@ class API
 		$sql = "INSERT INTO users (username, password) VALUES (:username, :password)";
 		$stmt = self::$connect->prepare($sql);
 
-		$stmt->bindValue(':username', mysqli_real_escape_string($data['username']), PDO::PARAM_STR);
+		$stmt->bindValue(':username', $data['username'], PDO::PARAM_STR);
 		$stmt->bindValue(':password', password_hash($data['password'], PASSWORD_BCRYPT), PDO::PARAM_STR);
 
 		if ($stmt->execute())
@@ -57,21 +57,31 @@ class API
 		$data = json_decode(file_get_contents('php://input'), true);
 		if(self::CheckErrorsUsersAPI($paramsList, true) === false || self::SearchID(intval($paramsList[2])) === false || self::CheckJSON($data) === false) return;
 
-		$sql = "SELECT * FROM users WHERE username = :username";
+		$sql = "SELECT username, password FROM users WHERE id = :id";
 		$stmt = self::$connect->prepare($sql);
-		$stmt->bindValue(':username', mysqli_real_escape_string($data['username']), PDO::PARAM_STR);
+		$stmt->bindValue(':id', intval($paramsList[2]), PDO::PARAM_INT);
+		$stmt->execute();
+		$user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-		if ($stmt->rowCount() > 0)
+		// Проверяем, изменилось ли имя пользователя
+		if ($data['username'] !== $user['username'])
 		{
-			http_response_code(403);
-			echo json_encode(['error' => 'Такой пользователь уже существует']);
-			return;
+			$sql = "SELECT * FROM users WHERE username = :username";
+			$stmt = self::$connect->prepare($sql);
+			$stmt->bindValue(':username', $data['username'], PDO::PARAM_STR);
+			$stmt->execute();
+			if ($stmt->rowCount() > 0)
+			{
+				http_response_code(403);
+				echo json_encode(['error' => 'Такой пользователь уже существует']);
+				return;
+			}
 		}
 
 		$sql = "UPDATE users SET username = :username, password = :password WHERE id = :id";
 		$stmt = self::$connect->prepare($sql);
-		$stmt->bindValue(':username', mysqli_real_escape_string($data['username']), PDO::PARAM_STR);
-		$stmt->bindValue(':password',password_hash($data['password']), PDO::PARAM_STR);
+		$stmt->bindValue(':username', $data['username'], PDO::PARAM_STR);
+		$stmt->bindValue(':password',  password_hash($data['password'], PASSWORD_BCRYPT), PDO::PARAM_STR);
 		$stmt->bindValue(':id', intval($paramsList[2]), PDO::PARAM_INT);
 
 		if ($stmt->execute())
@@ -125,17 +135,24 @@ class API
 		$data = json_decode(file_get_contents('php://input'), true);
 		if(self::CheckJSON($data) === false) return;
 
-		$sql = "SELECT * FROM users WHERE username = :username AND password = :password";
+		$sql = "SELECT * FROM users WHERE username = :username";
 		$stmt = self::$connect->prepare($sql);
-		$stmt->bindValue(':username', mysqli_real_escape_string($data['username']), PDO::PARAM_STR);
-		$stmt->bindValue(':password', password_hash($data['password']), PDO::PARAM_STR);
+		$stmt->bindValue(':username', $data['username'], PDO::PARAM_STR);
 		$stmt->execute();
 
 		if ($stmt->rowCount() == 1)
 		{
 			$user = $stmt->fetch(PDO::FETCH_ASSOC);
-			http_response_code(200);
-			echo json_encode(['message' => 'Авторизация успешна', 'user' => $user]);
+			if (password_verify($data['password'], $user['password']))
+			{
+				http_response_code(200);
+				echo json_encode(['message' => 'Авторизация успешна', 'user' => [ 'id' => $user['id'], 'username' => $user['username']]]);
+			}
+			else
+			{
+				http_response_code(401);
+				echo json_encode(['error' => 'Неверный логин или пароль']);
+			}
 		}
 		else
 		{
@@ -175,12 +192,12 @@ class API
 
 		$user = $stmt->fetch(PDO::FETCH_ASSOC);
 		http_response_code(200);
-		echo json_encode($user);
+		echo json_encode(['user' => [ 'id' => $user['id'], 'username' => $user['username']]]);
 	}
 
     private static function GetAllUser()
 	{
-		$sql = "SELECT * FROM users";
+		$sql = "SELECT id, username FROM users";
 		$stmt = self::$connect->prepare($sql);
 		$stmt->execute();
 
@@ -191,7 +208,7 @@ class API
 			return;
 		}
 
-		$usersList = $stmt->fetch(PDO::FETCH_ASSOC);
+		$usersList = $stmt->fetchAll(PDO::FETCH_ASSOC);
 		http_response_code(200);
 		echo json_encode($usersList);
     }
