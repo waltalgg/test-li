@@ -1,6 +1,5 @@
 Как пользоваться API
 =
------------------
 
 > Базовый URL: https://mysite.com/users
 
@@ -98,23 +97,39 @@
     * __404 Not Found__: Пользователи не существуют в базе данных.
     * __500 Internal Server Error__: Ошибка на сервере.
 
-------
 
 Пример использования с помощью __CURL__:
 -
+
 #### Добавление пользователя
+```php
 curl -X POST https://mysite.com/users/add \
-  -H "Content-Type: application/json" \
-  -d '{ "username": "john.doe", "password": "secretpassword" }'
-
-#### Получение пользователя
-curl -X GET https://mysite.com/users/get/123 \
-  -H "Accept: application/json"
-
+    -H "Content-Type: application/json" \
+    -d '{ "username": "john.doe", "password": "secretpassword" }' 
+```
 #### Обновление пользователя
-curl -X PUT https://mysite.com/users/update/123 \
-  -H "Content-Type: application/json" \
-  -d '{ "username": "john.doe1" }'
-
+```php
+curl -X POST https://mysite.com/users/update/123 \
+    -H "Content-Type: application/json" \
+    -d '{ "username": "john.doe1" }' 
+```
 #### Удаление пользователя
-curl -X DELETE https://mysite.com/users/delete/123
+```php
+curl -X POST https://mysite.com/users/delete/123
+```
+#### Авторизация пользователя
+```php
+curl -X POST https://mysite.com/users/auth \
+    -H "Content-Type: application/json" \
+    -d '{ "username": "john.doe", "password": "secretpassword" }'
+```
+#### Получение пользователя
+```php
+curl -X POST https://mysite.com/users/get/123 \
+    -H "Accept: application/json" 
+```
+#### Получение всех пользователей
+```php
+curl -X POST https://mysite.com/users \
+    -H "Accept: application/json"  
+```
