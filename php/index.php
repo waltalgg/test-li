@@ -12,21 +12,24 @@ class API
 {
 	private static $connect;
 
+	/**
+	 * Создает нового пользователя.
+	 *
+	 * @return void
+	 */
 	private static function AddUser()
 	{
 		$data = json_decode(file_get_contents('php://input'), true);
-		if (!isset($data['username']) && !isset($data['password']))
+		if(self::CheckJSON($data) === false)
 		{
-			http_response_code(400);
-			echo json_encode(['error' => 'Недостаточно данных для создания пользователя']);
 			return;
 		}
 
 		$sql = "INSERT INTO users (username, password) VALUES (:username, :password)";
 		$stmt = self::$connect->prepare($sql);
 
-		$stmt->bindValue(':username', $data['username'], PDO::PARAM_STR);
-		$stmt->bindValue(':password', $data['password'], PDO::PARAM_STR);
+		$stmt->bindValue(':username', mysqli_real_escape_string($data['username']), PDO::PARAM_STR);
+		$stmt->bindValue(':password', password_hash($data['password'], PASSWORD_BCRYPT), PDO::PARAM_STR);
 
 		if ($stmt->execute())
 		{
@@ -40,42 +43,36 @@ class API
 		}
 	}
 
+	/**
+	 * Обновляет информацию о пользователе.
+	 *
+	 * @param array $paramsList Массив параметров запроса.
+	 * @param int $paramsList[2] - id пользователя.
+	 *
+	 * @return void
+	 */
+
 	private static function UpdateUser($paramsList)
 	{
-		if(self::CheckErrorsUsersAPI($paramsList) === false)
-		{
-			return;
-		}
-
-		if (!isset($data['username']) || !isset($data['password']))
-		{
-			http_response_code(400);
-			echo json_encode(['error' => 'Нет данных для обновления пользователя']);
-			return;
-		}
-
-		$userID = intval($paramsList[2]);
-
-		// Первый запрос на поиск по ID
 		$data = json_decode(file_get_contents('php://input'), true);
-		$sql = "SELECT * FROM users WHERE id = :id";
-		$stmt = self::$connect->prepare($sql);
-		$stmt->bindValue(':id', $userID, PDO::PARAM_INT);
-		$stmt->execute();
+		if(self::CheckErrorsUsersAPI($paramsList, true) === false || self::SearchID(intval($paramsList[2])) === false || self::CheckJSON($data) === false) return;
 
-		if ($stmt->rowCount() == 0)
+		$sql = "SELECT * FROM users WHERE username = :username";
+		$stmt = self::$connect->prepare($sql);
+		$stmt->bindValue(':username', mysqli_real_escape_string($data['username']), PDO::PARAM_STR);
+
+		if ($stmt->rowCount() > 0)
 		{
-			http_response_code(404);
-			echo json_encode(['error' => 'Пользователь не найден']);
+			http_response_code(403);
+			echo json_encode(['error' => 'Такой пользователь уже существует']);
 			return;
 		}
 
-		// Второй запрос уже на Update
 		$sql = "UPDATE users SET username = :username, password = :password WHERE id = :id";
 		$stmt = self::$connect->prepare($sql);
-		$stmt->bindValue(':username', $data['username'], PDO::PARAM_STR);
-		$stmt->bindValue(':password', $data['password'], PDO::PARAM_STR);
-		$stmt->bindValue(':id', $userID, PDO::PARAM_INT);
+		$stmt->bindValue(':username', mysqli_real_escape_string($data['username']), PDO::PARAM_STR);
+		$stmt->bindValue(':password',password_hash($data['password']), PDO::PARAM_STR);
+		$stmt->bindValue(':id', intval($paramsList[2]), PDO::PARAM_INT);
 
 		if ($stmt->execute())
 		{
@@ -89,23 +86,22 @@ class API
 		}
 	}
 
-	private static function DeleteUser($paramList)
-	{
-		$userID = ''; // TODO: Заглушка
-		$sql = "SELECT * FROM users WHERE id = :id";
-		$stmt = self::$connect->prepare($sql);
-		$stmt->bindValue(':id', $userID, PDO::PARAM_INT);
-		$stmt->execute();
+	/**
+	 * Удаляет пользователя.
+	 *
+	 * @param array $paramsList Массив параметров запроса.
+	 * @param int $paramsList[2] - id пользователя.
+	 *
+	 * @return void
+	 */
 
-		if ($stmt->rowCount() == 0) {
-			http_response_code(404);
-			echo json_encode(['error' => 'Пользователь не найден']);
-			return;
-		}
+	private static function DeleteUser($paramsList)
+	{
+		if(self::CheckErrorsUsersAPI($paramsList) === false || self::SearchID(intval($paramsList[2])) === false) return;
 
 		$sql = "DELETE FROM users WHERE id = :id";
 		$stmt = self::$connect->prepare($sql);
-		$stmt->bindValue(':id', $userID, PDO::PARAM_INT);
+		$stmt->bindValue(':id', intval($paramsList[2]), PDO::PARAM_INT);
 
 		if ($stmt->execute())
 		{
@@ -119,24 +115,20 @@ class API
 		}
 	}
 
+	/**
+	 * Аутентификация пользователя.
+	 *
+	 * @return void
+	 */
 	private static function AuthUser()
 	{
-
 		$data = json_decode(file_get_contents('php://input'), true);
-		if (!isset($data['username']) || !isset($data['password']))
-		{
-			http_response_code(400);
-			echo json_encode(['error' => 'Недостаточно данных для авторизации']);
-			return;
-		}
+		if(self::CheckJSON($data) === false) return;
 
 		$sql = "SELECT * FROM users WHERE username = :username AND password = :password";
 		$stmt = self::$connect->prepare($sql);
-
-		$stmt->bindValue(':username', $data['username'], PDO::PARAM_STR);
-		$stmt->bindValue(':password', $data['password'], PDO::PARAM_STR);
-
-
+		$stmt->bindValue(':username', mysqli_real_escape_string($data['username']), PDO::PARAM_STR);
+		$stmt->bindValue(':password', password_hash($data['password']), PDO::PARAM_STR);
 		$stmt->execute();
 
 		if ($stmt->rowCount() == 1)
@@ -149,10 +141,17 @@ class API
 		{
 			http_response_code(401);
 			echo json_encode(['error' => 'Неверный логин или пароль']);
-
 		}
 	}
 
+	/**
+	 * Возвращает информацию о пользователе.
+	 *
+	 * @param array $paramsList Массив параметров запроса.
+	 * @param int $paramsList[2] - id пользователя.
+	 *
+	 * @return void
+	 */
 	private static function GetUser($paramsList)
 	{
 		if(self::CheckErrorsUsersAPI($paramsList) === false)
@@ -197,6 +196,37 @@ class API
 		echo json_encode($usersList);
     }
 
+	/**
+	 * Проверяет, существует ли пользователь с указанным ID.
+	 *
+	 * @param int $userID ID пользователя.
+	 *
+	 * @return bool True, если пользователь существует, иначе False.
+	 */
+	private static function SearchID($userID)
+	{
+		$sql = "SELECT * FROM users WHERE id = :id";
+		$stmt = self::$connect->prepare($sql);
+		$stmt->bindValue(':id', $userID, PDO::PARAM_INT);
+		$stmt->execute();
+
+		if ($stmt->rowCount() == 0)
+		{
+			http_response_code(404);
+			echo json_encode(['error' => 'Пользователь не найден']);
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	 * Проверяет, валидны ли параметры запроса и существует ли пользователь.
+	 *
+	 * @param array $paramsList Массив параметров запроса.
+	 * @param int $paramsList[2] - id пользователя.
+	 *
+	 * @return bool True, если параметры валидны и пользователь существует, иначе False.
+	 */
 	private static function CheckErrorsUsersAPI($paramsList)
 	{
 		if (!isset($paramsList[2]))
@@ -218,9 +248,44 @@ class API
 			echo json_encode(['message' => 'Неверно указан идентификатор пользователя']);
 			return false;
 		}
-
 		return true;
 	}
+
+	/**
+	 * Проверяет, являются ли входные данные массивом данных и содержит ли он все необходимые поля.
+	 *
+	 * @param array $data Входные данные в формате JSON.
+	 *
+	 * @return bool True, если данные JSON-валидны и содержат все необходимые поля, иначе False.
+	 */
+	private static function CheckJSON($data)
+	{
+		if (is_array($data) === false || empty($data))
+		{
+			http_response_code(400);
+			echo json_encode(['error' => 'Некорректный запрос']);
+			return false;
+		}
+
+		if (isset($data['username']) && isset($data['password']))
+		{
+			return true;
+		}
+		else
+		{
+			http_response_code(400);
+			echo json_encode(['error' => 'Не все данные отправлены']);
+			return false;
+		}
+	}
+
+	/**
+	 * Обработка запросов к API для работы с базой пользователей.
+	 *
+	 * @param array $paramsList Массив параметров запроса.
+	 *
+	 * @return void
+	 */
 
 	private static function APIUsers($paramsList)
 	{
@@ -230,7 +295,6 @@ class API
 			self::GetAllUser();
             return;
 		}
-
 		switch ($paramsList[1])
 		{
 			case 'add':
@@ -258,10 +322,19 @@ class API
 				break;
 		}
 	}
+
+	/**
+	 * Обработчик API-запросов.
+	 *
+	 * @param string $handler Строка, содержащая путь к API в формате: <br> ../php/$paramsList[0]/$paramsList[1]/$paramsList[2]
+	 *
+	 * @return void
+	 */
+
 	public static function APIHandler($handler)
 	{
 		self::$connect = WorkWithDatabase::ConnectToDB();
-		$paramsList = explode('/', $handler); // Разбиение строки в формате: ../php/$paramsList[0]/$paramsList[1]/$paramsList[2]
+		$paramsList = explode('/', $handler);
 		switch ($paramsList[0]) {
 			case 'users':
 				self::APIUsers($paramsList);
@@ -273,8 +346,6 @@ class API
 	}
 }
 
-
-// ...
 if(isset($_GET['w']))
 {
 	API::APIHandler($_GET['w']);
