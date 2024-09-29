@@ -105,13 +105,13 @@
 ```php
 curl -X POST https://mysite.com/users/add \
     -H "Content-Type: application/json" \
-    -d '{ "username": "john.doe", "password": "secretpassword" }' 
+    -d '{ "username": "Peter Griffin", "password": "secretpassword" }' 
 ```
 #### Обновление пользователя
 ```php
 curl -X POST https://mysite.com/users/update/123 \
     -H "Content-Type: application/json" \
-    -d '{ "username": "john.doe1" }' 
+    -d '{ "username": "Stewie Griffin" }' 
 ```
 #### Удаление пользователя
 ```php
@@ -121,7 +121,7 @@ curl -X POST https://mysite.com/users/delete/123
 ```php
 curl -X POST https://mysite.com/users/auth \
     -H "Content-Type: application/json" \
-    -d '{ "username": "john.doe", "password": "secretpassword" }'
+    -d '{ "username": "Peter Griffin", "password": "secretpassword" }'
 ```
 #### Получение пользователя
 ```php
