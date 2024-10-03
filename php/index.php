@@ -1,6 +1,6 @@
 <?php
 
-require_once($_SERVER['DOCUMENT_ROOT'].'\php\work_with_database.php');
+require_once($_SERVER['DOCUMENT_ROOT'].'/php/work_with_database.php');
 
 header('Content-type: json/application');
 header('Access-control-Allow-Origin: *');
